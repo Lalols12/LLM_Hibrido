@@ -1,5 +1,6 @@
 from owlready2 import *
 from owlready2 import OwlReadyInconsistentOntologyError
+import os
 
 iri_base = "http://escom.ipn.mx/onto/math_assistant.owl"
 onto = get_ontology(iri_base)
@@ -78,4 +79,10 @@ with onto:
     except OwlReadyInconsistentOntologyError as e:
         print(f"[ERROR] Contradicción lógica detectada: {e}")
 
-onto.save(file="ontologia_matematica_base.owl", format="rdfxml")
+ruta_directorio_actual = os.path.dirname(os.path.abspath(__file__))
+ruta_carpeta_data = os.path.join(ruta_directorio_actual, "..", "data")
+
+archivo_salida = os.path.join(ruta_carpeta_data, "ontologia_matematica_base.owl")
+
+onto.save(file=archivo_salida, format="rdfxml")
+print(f"\nArchivo guardado con éxito en: {os.path.abspath(archivo_salida)}")
