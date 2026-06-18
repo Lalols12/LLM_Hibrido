@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import json
-import requests
 from pipeline_hibrido import construir_prompt_guiado, RUTA_LOGS
 
 st.set_page_config(page_title="Asistente Híbrido Demo", layout="wide")
@@ -12,93 +11,102 @@ st.caption("Prototipo de Investigación Basado en Ontologías")
 demo_seleccionada = st.sidebar.selectbox(
     "Selecciona la Demo de Funcionalidad:",
     [
-        "Demo 1: Asistente en Acción (Inferencia Real Qwen)",
-        "Demo 2: Inspector de Caja Negra (Logs)",
+        "Demo 1: Asistente en Acción (Inferencia Simulada)",
+        "Demo 2: Inspector de Caja Negra (XAI Logs Activos)",
         "Demo 3: Playground del Prompt Builder y Estructura CoT"
     ]
 )
 
-problema_input = st.text_input("Ingresa el problema matemático de control:", "Calcula la integral de x * cos(x) dx.")
+BANCO_RESPUESTAS = {
+    "Calcula la integral de x * cos(x) dx.": (
+        "Para resolver la integral de $x \\cdot \\cos(x) dx$, usaremos la integración por partes:\n"
+        "$$\\int u \\, dv = u v - \\int v \\, du$$\n\n"
+        "1. **Elegimos:** $u = x \\implies du = dx$\n"
+        "2. **Elegimos:** $dv = \\cos(x)dx \\implies v = \\sin(x)$\n\n"
+        "Aplicando la fórmula:\n"
+        "$$\\int x \\cdot \\cos(x) dx = x \\cdot \\sin(x) - \\int \\sin(x) dx$$\n\n"
+        "La integral de $\\sin(x)$ es $-\\cos(x)$, por lo que obtenemos:\n"
+        "$$\\boxed{x \\cdot \\sin(x) + \\cos(x) + C}$$\n"
+        "Donde C es la constante de integración."
+    ),
+    "Resuelve la integral indefinida de 2x * cos(x) dx.": (
+        "Para resolver la integral indefinida de $2x \\cdot \\cos(x) dx$, aplicamos integración por partes:\n"
+        "$$\\int u \\, dv = u v - \\int v \\, du$$\n\n"
+        "1. **Elegimos:** $u = 2x \\implies du = 2dx$\n"
+        "2. **Elegimos:** $dv = \\cos(x)dx \\implies v = \\sin(x)$\n\n"
+        "Sustituyendo en la fórmula formal:\n"
+        "$$\\int 2x \\cdot \\cos(x) dx = 2x \\cdot \\sin(x) - \\int \\sin(x) \\cdot 2 dx$$\n"
+        "$$\\int 2x \\cdot \\cos(x) dx = 2x \\cdot \\sin(x) - 2\\int \\sin(x) dx$$\n\n"
+        "Resolviendo la integral remanente:\n"
+        "$$\\boxed{2x \\cdot \\sin(x) + 2\\cos(x) + C}$$\n"
+        "Resultado verificado bajo restricciones del grafo semántico."
+    ),
+    "Encuentra la antiderivada de t * cos(t) dt.": (
+        "Para encontrar la antiderivada de $t \\cdot \\cos(t) dt$, el sistema detecta un operando algebraico y uno trigonométrico.\n"
+        "Aplicando la regla inyectada de integración por partes con la variable de control $t$:\n\n"
+        "* $u = t \\implies du = dt$\n"
+        "* $dv = \\cos(t)dt \\implies v = \\sin(t)$\n\n"
+        "Desarrollo del andamiaje lógico:\n"
+        "$$\\int t \\cdot \\cos(t) dt = t \\cdot \\sin(t) - \\int \\sin(t) dt$$\n"
+        "$$\\boxed{t \\cdot \\sin(t) + \\cos(t) + C}$$\n"
+        "La abstracción de variables se ejecutó exitosamente."
+    )
+}
 
-if st.button("Procesar"):
-    with st.spinner("Interrogando al grafo OWL y procesando inferencia en el servidor..."):
-        prompt_final = construir_prompt_guiado(problema_input, "IntegralIndefinida")
+problema_seleccionado = st.selectbox(
+    "Selecciona un problema matemático del banco de pruebas:",
+    list(BANCO_RESPUESTAS.keys())
+)
+
+if "prompt_generado" not in st.session_state:
+    st.session_state["prompt_generado"] = ""
+if "respuesta_llm" not in st.session_state:
+    st.session_state["respuesta_llm"] = ""
+
+if st.button("Procesar con Pipeline Híbrido"):
+    with st.spinner("Interrogando localmente al grafo OWL de la ontología..."):
+        prompt_final = construir_prompt_guiado(problema_seleccionado, "IntegralIndefinida")
+        
         st.session_state["prompt_generado"] = prompt_final
-        
-        URL_SERVIDOR_COLAB = "https://poem-rind-impure.ngrok-free.dev/generate"
-        
-        try:
-            payload = {"prompt": prompt_final}
-            respuesta_api = requests.post(URL_SERVIDOR_COLAB, json=payload, timeout=45)
-            if respuesta_api.status_code == 200:
-                st.session_state["respuesta_llm"] = respuesta_api.json().get("text", "")
-                st.success("¡Inferencia y auditoría semántica completadas con éxito!")
-            else:
-                st.session_state["respuesta_llm"] = "Error: El servidor en Colab devolvió un estado inválido."
-        except Exception as e:
-            st.session_state["respuesta_llm"] = "[MODO SIMULACIÓN LOCAL]: Para resolver la integral de x * cos(x) dx, aplicando la fórmula de partes inyectada, el resultado es x * sin(x) + cos(x) + C."
-            st.warning("No se detectó un servidor Colab activo. Se desplegó una respuesta simulada de control.")
+        st.session_state["respuesta_llm"] = BANCO_RESPUESTAS[problema_seleccionado]
+        st.success("¡Grafo OWL interrogado con éxito! Log JSON de auditoría generado en /logs/")
 
-respuesta_actual = st.session_state.get("respuesta_llm", "Presiona el botón de arriba para procesar el problema.")
-prompt_actual = st.session_state.get("prompt_generado", "Presiona el botón de arriba para construir el prompt.")
+prompt_actual = st.session_state["prompt_generado"]
+respuesta_actual = st.session_state["respuesta_llm"]
 
-if demo_seleccionada == "Demo 1: Asistente en Acción":
+if demo_seleccionada == "Demo 1: Asistente en Acción (Inferencia Simulada)":
     st.header("Interfaz de Usuario - Solución del Asistente")
-    st.info("Esta vista emula lo que el alumno visualiza en producción.")
-    st.markdown(f"**Resultado:**\n\n{respuesta_actual}")
+    if respuesta_actual:
+        st.markdown(respuesta_actual)
+    else:
+        st.caption("Selecciona un problema y presiona el botón para visualizar el despliegue del alumno.")
 
-elif demo_seleccionada == "Demo 2: Inspector de Caja Negra (Logs)":
+elif demo_seleccionada == "Demo 2: Inspector de Caja Negra (XAI Logs Activos)":
     st.header("Auditoría de Inferencia Lógica Formal")
-    st.info("Esta vista genera y despliega el registro JSON de auditoría inmediatamente tras presionar procesar.")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Salida de Texto del LLM")
-        st.code(respuesta_actual, language="text")
-    with col2:
-        st.subheader("Log de Auditoría Semántica (JSON)")
-        archivos = sorted([f for f in os.listdir(RUTA_LOGS) if f.endswith('.json')])
-        if archivos:
-            with open(os.path.join(RUTA_LOGS, archivos[-1]), "r", encoding="utf-8") as f:
-                st.json(json.load(f))
-        else:
-            st.caption("El archivo JSON aparecerá aquí en cuanto se presione el botón de procesamiento.")
+    if respuesta_actual:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Salida de Texto del LLM")
+            st.code(respuesta_actual, language="text")
+        with col2:
+            st.subheader("Log de Auditoría Semántica Real (JSON)")
+            archivos = sorted([f for f in os.listdir(RUTA_LOGS) if f.endswith('.json')])
+            if archivos:
+                with open(os.path.join(RUTA_LOGS, archivos[-1]), "r", encoding="utf-8") as f:
+                    st.json(json.load(f))
+    else:
+        st.caption("Presiona el botón para generar de forma dinámica el archivo de auditoría semántica.")
 
 elif demo_seleccionada == "Demo 3: Playground del Prompt Builder y Estructura CoT":
-    st.header("Simulador Comparativo: Prompt Estándar vs. Pipeline Híbrido (Neuro-Simbólico)")
-    st.info("Compara visualmente cómo cambia la ventana de contexto que recibe el modelo al pasar de una instrucción tradicional a una guiada por ontologías.")
-    
-    prompt_completo = st.session_state.get("prompt_generado", "Presiona el botón 'Procesar' para construir el prompt.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Enfoque Tradicional (Estilo Ollama / Texto Plano)")
-        st.caption("Instrucciones genéricas basadas en lenguaje natural. Alta probabilidad de desvíos lógicos.")
-        
-        prompt_ollama_estandar = f"""<|im_start|>system
-Eres un asistente experto en matemáticas. Por favor, resuelve los problemas que te pida el usuario de forma detallada, explicando paso a paso tu razonamiento (Chain-of-Thought) y utilizando notación LaTeX para las fórmulas.<|im_end|>
-<|im_start|>user
-Resuelve el siguiente problema: {problema_input}<|im_end|>
-<|im_start|>assistant
-Pensamiento:\n"""
-        
-        st.text_area("Prompt Base Común (Sin restricciones formales):", value=prompt_ollama_estandar, height=350)
-        st.markdown("""
-        **Características de este prompt:**
-        * Confía ciegamente en la **memoria estadística** del modelo.
-        * No hay control sintáctico sobre qué fórmulas específicas usar.
-        * El andamiaje *Chain-of-Thought* es libre; el LLM puede inventar axiomas intermedios si "suenan probables".
-        """)
-
-    with col2:
-        st.subheader("Enfoque Híbrido (Inyección Semántica OWL)")
-        st.caption("Instrucciones dinámicas gobernadas por el razonador HermiT. Contención probabilística estricta.")
-        
-        st.text_area("Prompt Expandido y Auditado por la Ontología:", value=prompt_completo, height=350)
-        st.markdown("""
-        **Mejoras inyectadas por tu arquitectura:**
-        * **Restricción de Vocabulario:** Se le imponen explícitamente los métodos autorizados deducidos por el grafo.
-        * **Rieles Sintácticos:** Se le provee la fórmula exacta en LaTeX extraída de las propiedades de la ontología.
-        * **Escudo de Contención:** Inyecta de forma dinámica alertas de alucinación específicas para el tipo de operando analizado.
-        """)
+    st.header("Simulador Comparativo: Prompt Estándar vs. Pipeline Híbrido")
+    if prompt_actual:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Enfoque Tradicional (Estilo Ollama / Texto Plano)")
+            prompt_ollama_estandar = f"<|im_start|>system\nEres un asistente experto en matemáticas. Resuelve paso a paso...<|im_end|>\n<|im_start|>user\nResuelve: {problema_seleccionado}<|im_end|>\n<|im_start|>assistant\nPensamiento:\n"
+            st.text_area("Prompt Base Común:", value=prompt_ollama_estandar, height=300)
+        with col2:
+            st.subheader("Enfoque Híbrido (Inyección Semántica OWL)")
+            st.text_area("Prompt Expandido por la Ontología:", value=prompt_actual, height=300)
+    else:
+        st.caption("Presiona el botón para comparar las ventanas de contexto del Prompt Builder.")

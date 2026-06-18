@@ -1,0 +1,17 @@
+{
+    "timestamp": "2026-06-18 13:26:47",
+    "problema_recibido": "Calcula la integral de x * cos(x) dx.",
+    "clase_operacion": "IntegralIndefinida",
+    "inferencias_hermit": {
+        "metodos_descubiertos_por_inversa": [
+            "Paso2_AplicarFormula"
+        ],
+        "dependencias_transitivas_requisito": []
+    },
+    "restricciones_inyectadas": {
+        "formulas_latex": [
+            "\\int u dv = u v - \\int v du"
+        ],
+        "alertas_alucinacion": []
+    }
+}
