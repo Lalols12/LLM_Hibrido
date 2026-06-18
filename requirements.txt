@@ -3,3 +3,4 @@ accelerate
 bitsandbytes
 owlready2
 torch
+streamlit
